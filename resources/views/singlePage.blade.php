@@ -1,91 +1,523 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="en">
 <head>
-    <link href="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.css" rel="stylesheet" />
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sound Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+        }
+        
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+        }
+        
+        .wave-animation {
+            animation: wave 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes wave {
+            0%, 100% { height: 8px; }
+            50% { height: 24px; }
+        }
 
-    <title>{{ config('app.name', 'Laravel') }}</title>
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #374151;
+            border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #6B7280;
+            border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9CA3AF;
+        }
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
-
-    {{-- Ensure your Tailwind CSS is built and linked correctly --}}
-    @vite(['resources/css/app.css', 'resources/js/app.js']) 
-
+        /* Desktop-specific styles */
+        @media (min-width: 768px) {
+            .desktop-container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 2rem;
+            }
+            
+            .desktop-layout {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+                align-items: start;
+            }
+            
+            .desktop-controls {
+                display: flex;
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+            
+            .desktop-side-panel {
+                background: #1f2937;
+                border-radius: 12px;
+                padding: 1.5rem;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .desktop-waveform {
+                height: 120px;
+                margin: 1.5rem 0;
+            }
+            
+            .desktop-results {
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            
+            .desktop-title {
+                font-size: 1.875rem;
+                margin-bottom: 1.5rem;
+                text-align: center;
+                color: #3b82f6;
+            }
+        }
+    </style>
 </head>
-<body class="flex h-screen bg-black">
-    <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
+<body class="min-h-screen">
+    <!-- Mobile View -->
+    <div class="block md:hidden bg-gray-900 min-h-screen">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-700 to-blue-800 text-white p-4">
+            <div class="flex justify-between items-center mb-2">
+                <div class="w-6"></div>
+                <h1 class="text-lg font-semibold">Sound Detection</h1>
+                <div class="flex items-center space-x-1">
+                    <div class="w-4 h-2 bg-blue-300 rounded-sm"></div>
+                    <div class="w-4 h-2 bg-blue-300 rounded-sm"></div>
+                    <div class="w-4 h-2 bg-blue-300 rounded-sm"></div>
+                    <div class="w-2 h-2 bg-blue-300 rounded-full"></div>
+                </div>
+            </div>
+        </div>
 
-    <div class="flex flex-col items-center justify-center w-full bg-gray-900 p-4">
-        <h1 class="text-4xl font-bold text-white mb-8">Sound Detection</h1>
-    
-        <div class="mb-4">
-            <button id="recordButton" class="text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-lg px-8 py-4 mr-4 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+        <!-- Main Content -->
+        <div class="flex flex-col items-center justify-center px-8 py-12 space-y-8">
+            <!-- Recording Circle -->
+            <div class="relative flex items-center justify-center">
+                <!-- Pulse rings -->
+                <div id="pulseRing1Mobile" class="absolute w-48 h-48 rounded-full bg-blue-800 opacity-0"></div>
+                <div id="pulseRing2Mobile" class="absolute w-40 h-40 rounded-full bg-blue-700 opacity-0"></div>
+                
+                <!-- Main circle -->
+                <div id="recordingCircleMobile" class="w-32 h-32 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                    <!-- Microphone Icon -->
+                    <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z"/>
+                        <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                        <path d="M12 18v4"/>
+                        <path d="M8 22h8"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Timer Display -->
+            <div class="text-center">
+                <div id="timerMobile" class="text-4xl font-mono font-bold text-white mb-2">00:00:00</div>
+                <div id="statusMessageMobile" class="text-gray-400 text-sm">Ready to listen</div>
+            </div>
+
+            <!-- Possible Match Display -->
+            <div id="possibleMatchMobile" class="text-center text-blue-400 font-semibold px-4 min-h-8"></div>
+
+            <!-- Audio Waveform -->
+            <div id="waveformMobile" class="flex items-end justify-center space-x-1 h-8 opacity-0">
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.1s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.2s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.3s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.4s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.5s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.6s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.7s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.8s;"></div>
+                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.9s;"></div>
+            </div>
+
+            <!-- Microphone Info -->
+            <div id="micDisplayMobile" class="text-xs text-gray-500 text-center px-4"></div>
+
+            <!-- Control Buttons -->
+            <div class="flex items-center justify-center space-x-4">
+                <!-- Pause/Play Button (when recording) -->
+                <button id="pauseButtonMobile" class="w-12 h-12 bg-blue-800 rounded-full flex items-center justify-center opacity-0 transition-opacity">
+                    <svg class="w-6 h-6 text-blue-300" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="4" width="4" height="16"/>
+                        <rect x="14" y="4" width="4" height="16"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Main Action Button -->
+            <button id="mainActionButtonMobile" class="w-48 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-full transition-colors">
                 Start Listening
             </button>
-            <button id="stopRecordButton" class="text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-lg px-8 py-4 opacity-50 cursor-not-allowed dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800" disabled>
-                Stop Listening
-            </button>
+
+            <!-- Secondary Actions -->
+            <div class="flex space-x-4 opacity-0" id="secondaryActionsMobile">
+                <button id="playButtonMobile" class="px-6 py-2 bg-gray-700 text-gray-300 rounded-full font-medium">
+                    Play
+                </button>
+                <button id="recognizeButtonMobile" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full font-medium">
+                    Recognize
+                </button>
+            </div>
+
+            <!-- Result Display -->
+            <div id="resultDisplayMobile" class="text-center text-blue-400 font-semibold px-4"></div>
         </div>
 
-        <div class="mb-8">
-            <button id="playButton" class="text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-lg px-8 py-4 mr-4 opacity-50 cursor-not-allowed" disabled>
-                Play
-            </button>
-            <button id="recognizeButton" class="text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-lg px-8 py-4 opacity-50 cursor-not-allowed" disabled>
-                Recognize
-            </button>
-        </div>
+        <!-- Hidden Audio Element -->
+        <audio id="audioPlaybackMobile" controls class="hidden"></audio>
+    </div>
 
-        <div id="statusMessage" class="text-white text-xl mb-2">Ready</div>
-        <div id="micDisplay" class="text-gray-400 text-sm mb-4"></div>
-        <div id="resultDisplay" class="text-green-400 text-2xl font-semibold"></div>    
+    <!-- Desktop View -->
+    <div class="hidden md:block desktop-container">
+        <h1 class="desktop-title">Sound Detection</h1>
         
-        <audio id="audioPlayback" controls class="hidden"></audio>
+        <div class="desktop-layout">
+            <!-- Left Panel - Controls -->
+            <div class="desktop-controls">
+                <div class="desktop-side-panel">
+                    <!-- Recording Section -->
+                    <div class="flex flex-col items-center justify-center">
+                        <!-- Recording Circle -->
+                        <div class="relative flex items-center justify-center mb-6">
+                            <!-- Pulse rings -->
+                            <div id="pulseRing1Desktop" class="absolute w-48 h-48 rounded-full bg-blue-800 opacity-0"></div>
+                            <div id="pulseRing2Desktop" class="absolute w-40 h-40 rounded-full bg-blue-700 opacity-0"></div>
+                            
+                            <!-- Main circle -->
+                            <div id="recordingCircleDesktop" class="w-32 h-32 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                                <!-- Microphone Icon -->
+                                <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z"/>
+                                    <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                                    <path d="M12 18v4"/>
+                                    <path d="M8 22h8"/>
+                                </svg>
+                            </div>
+                        </div>
 
+                        <!-- Timer Display -->
+                        <div class="text-center mb-4">
+                            <div id="timerDesktop" class="text-4xl font-mono font-bold text-white mb-2">00:00:00</div>
+                            <div id="statusMessageDesktop" class="text-gray-400 text-sm">Ready to listen</div>
+                        </div>
+
+                        <!-- Possible Match Display -->
+                        <div id="possibleMatchDesktop" class="text-center text-blue-400 font-semibold px-4 min-h-8 mb-4"></div>
+
+                        <!-- Main Action Button -->
+                        <button id="mainActionButtonDesktop" class="w-48 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-full transition-colors mb-4">
+                            Start Listening
+                        </button>
+
+                        <!-- Control Buttons -->
+                        <div class="flex items-center justify-center space-x-4 mb-4">
+                            <!-- Pause/Play Button (when recording) -->
+                            <button id="pauseButtonDesktop" class="w-12 h-12 bg-blue-800 rounded-full flex items-center justify-center opacity-0 transition-opacity">
+                                <svg class="w-6 h-6 text-blue-300" fill="currentColor" viewBox="0 0 24 24">
+                                    <rect x="6" y="4" width="4" height="16"/>
+                                    <rect x="14" y="4" width="4" height="16"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Microphone Info -->
+                        <div id="micDisplayDesktop" class="text-xs text-gray-500 text-center px-4 mb-4"></div>
+                    </div>
+                </div>
+
+                <!-- Audio Waveform -->
+                <div class="desktop-side-panel">
+                    <h2 class="text-lg font-semibold text-center mb-4 text-blue-300">Audio Waveform</h2>
+                    <div id="waveformDesktop" class="desktop-waveform flex items-end justify-center space-x-1 opacity-0">
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.1s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.2s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.3s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.4s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.5s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.6s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.7s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.8s;"></div>
+                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.9s;"></div>
+                    </div>
+                    
+                    <!-- Secondary Actions -->
+                    <div class="flex space-x-4 justify-center opacity-0" id="secondaryActionsDesktop">
+                        <button id="playButtonDesktop" class="px-6 py-2 bg-gray-700 text-gray-300 rounded-full font-medium">
+                            Play Recording
+                        </button>
+                        <button id="recognizeButtonDesktop" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full font-medium">
+                            Recognize
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Results -->
+            <div class="desktop-side-panel desktop-results custom-scrollbar">
+                <h2 class="text-xl font-semibold text-center mb-4 text-blue-300">Detection Results</h2>
+                <div id="resultDisplayDesktop" class="text-center text-blue-400 font-semibold px-4"></div>
+                
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold mb-3 text-blue-300">Recent Detections</h3>
+                    <div id="detectionHistory" class="space-y-3">
+                        <div class="text-sm text-gray-400 text-center">No recent detections</div>
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold mb-3 text-blue-300">Settings</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="autoRecognize" class="rounded bg-gray-700 border-gray-600 mr-2" checked>
+                                <span>Auto-recognize on detection</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label class="flex items-center">
+                                <input type="range" id="sensitivity" class="w-full accent-blue-600" min="1" max="100" value="75">
+                                <span class="ml-2">Sensitivity: <span id="sensitivityValue">75</span>%</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden Audio Element -->
+        <audio id="audioPlaybackDesktop" controls class="hidden"></audio>
     </div>
 
     <script>
-        const recordButton = document.getElementById('recordButton');
-        const stopRecordButton = document.getElementById('stopRecordButton');
-        const playButton = document.getElementById('playButton');
-        const recognizeButton = document.getElementById('recognizeButton');
-        const statusMessage = document.getElementById('statusMessage');
-        const micDisplay = document.getElementById('micDisplay');
-        const resultDisplay = document.getElementById('resultDisplay');
-        const audioPlayback = document.getElementById('audioPlayback');
+        // Mobile elements
+        const mainActionButtonMobile = document.getElementById('mainActionButtonMobile');
+        const pauseButtonMobile = document.getElementById('pauseButtonMobile');
+        const playButtonMobile = document.getElementById('playButtonMobile');
+        const recognizeButtonMobile = document.getElementById('recognizeButtonMobile');
+        const statusMessageMobile = document.getElementById('statusMessageMobile');
+        const micDisplayMobile = document.getElementById('micDisplayMobile');
+        const resultDisplayMobile = document.getElementById('resultDisplayMobile');
+        const possibleMatchMobile = document.getElementById('possibleMatchMobile');
+        const audioPlaybackMobile = document.getElementById('audioPlaybackMobile');
+        const timerMobile = document.getElementById('timerMobile');
+        const recordingCircleMobile = document.getElementById('recordingCircleMobile');
+        const waveformMobile = document.getElementById('waveformMobile');
+        const pulseRing1Mobile = document.getElementById('pulseRing1Mobile');
+        const pulseRing2Mobile = document.getElementById('pulseRing2Mobile');
+        const secondaryActionsMobile = document.getElementById('secondaryActionsMobile');
+
+        // Desktop elements
+        const mainActionButtonDesktop = document.getElementById('mainActionButtonDesktop');
+        const pauseButtonDesktop = document.getElementById('pauseButtonDesktop');
+        const playButtonDesktop = document.getElementById('playButtonDesktop');
+        const recognizeButtonDesktop = document.getElementById('recognizeButtonDesktop');
+        const statusMessageDesktop = document.getElementById('statusMessageDesktop');
+        const micDisplayDesktop = document.getElementById('micDisplayDesktop');
+        const resultDisplayDesktop = document.getElementById('resultDisplayDesktop');
+        const possibleMatchDesktop = document.getElementById('possibleMatchDesktop');
+        const audioPlaybackDesktop = document.getElementById('audioPlaybackDesktop');
+        const timerDesktop = document.getElementById('timerDesktop');
+        const recordingCircleDesktop = document.getElementById('recordingCircleDesktop');
+        const waveformDesktop = document.getElementById('waveformDesktop');
+        const pulseRing1Desktop = document.getElementById('pulseRing1Desktop');
+        const pulseRing2Desktop = document.getElementById('pulseRing2Desktop');
+        const secondaryActionsDesktop = document.getElementById('secondaryActionsDesktop');
+        const detectionHistory = document.getElementById('detectionHistory');
+        const sensitivitySlider = document.getElementById('sensitivity');
+        const sensitivityValue = document.getElementById('sensitivityValue');
 
         let mediaRecorder;
         let audioChunks = [];
-        const RECOGNITION_CONFIDENCE_THRESHOLD = 15; // Set the minimum confidence score
-        const RECORDING_CHUNK_SIZE = 3000; // 3 seconds in milliseconds
-        let combinedBlob; // Stores the accumulated audio
+        let isRecording = false;
+        let startTime;
+        let timerInterval;
+        const RECOGNITION_CONFIDENCE_THRESHOLD = 15;
+        const RECORDING_CHUNK_SIZE = 3000;
+        let combinedBlob;
+        let detectionCount = 0;
 
-        function updateButtonState(isRecording) {
-            recordButton.disabled = isRecording;
-            recordButton.classList.toggle('opacity-50', isRecording);
-            recordButton.classList.toggle('cursor-not-allowed', isRecording);
-
-            stopRecordButton.disabled = !isRecording;
-            stopRecordButton.classList.toggle('opacity-50', !isRecording);
-            stopRecordButton.classList.toggle('cursor-not-allowed', !isRecording);
-
-            playButton.disabled = isRecording || !combinedBlob;
-            playButton.classList.toggle('opacity-50', playButton.disabled);
-            playButton.classList.toggle('cursor-not-allowed', playButton.disabled);
-
-            recognizeButton.disabled = isRecording || !combinedBlob;
-            recognizeButton.classList.toggle('opacity-50', recognizeButton.disabled);
-            recognizeButton.classList.toggle('cursor-not-allowed', recognizeButton.disabled);
+        // Update sensitivity value display
+        if (sensitivitySlider) {
+            sensitivitySlider.addEventListener('input', () => {
+                sensitivityValue.textContent = sensitivitySlider.value;
+            });
         }
 
-        recordButton.addEventListener('click', async () => {
-            resultDisplay.textContent = '';
-            micDisplay.textContent = '';
-            statusMessage.textContent = 'Requesting microphone access...';
-            updateButtonState(true);
+        function updateTimer() {
+            if (!startTime) return;
+            
+            const elapsed = Date.now() - startTime;
+            const hours = Math.floor(elapsed / 3600000);
+            const minutes = Math.floor((elapsed % 3600000) / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            
+            const timerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Update both mobile and desktop timers
+            if (timerMobile) timerMobile.textContent = timerText;
+            if (timerDesktop) timerDesktop.textContent = timerText;
+        }
 
+        function startRecordingAnimation() {
+            // Mobile animations
+            if (recordingCircleMobile) {
+                recordingCircleMobile.classList.remove('bg-blue-600');
+                recordingCircleMobile.classList.add('bg-blue-700');
+            }
+            if (pulseRing1Mobile) pulseRing1Mobile.classList.add('pulse-ring', 'opacity-30');
+            if (pulseRing2Mobile) pulseRing2Mobile.classList.add('pulse-ring', 'opacity-20');
+            if (waveformMobile) {
+                waveformMobile.classList.remove('opacity-0');
+                waveformMobile.classList.add('opacity-100');
+            }
+            if (pauseButtonMobile) {
+                pauseButtonMobile.classList.remove('opacity-0');
+                pauseButtonMobile.classList.add('opacity-100');
+            }
+            
+            // Desktop animations
+            if (recordingCircleDesktop) {
+                recordingCircleDesktop.classList.remove('bg-blue-600');
+                recordingCircleDesktop.classList.add('bg-blue-700');
+            }
+            if (pulseRing1Desktop) pulseRing1Desktop.classList.add('pulse-ring', 'opacity-30');
+            if (pulseRing2Desktop) pulseRing2Desktop.classList.add('pulse-ring', 'opacity-20');
+            if (waveformDesktop) {
+                waveformDesktop.classList.remove('opacity-0');
+                waveformDesktop.classList.add('opacity-100');
+            }
+            if (pauseButtonDesktop) {
+                pauseButtonDesktop.classList.remove('opacity-0');
+                pauseButtonDesktop.classList.add('opacity-100');
+            }
+        }
+
+        function stopRecordingAnimation() {
+            // Mobile animations
+            if (recordingCircleMobile) {
+                recordingCircleMobile.classList.remove('bg-blue-700');
+                recordingCircleMobile.classList.add('bg-blue-600');
+            }
+            if (pulseRing1Mobile) pulseRing1Mobile.classList.remove('pulse-ring', 'opacity-30');
+            if (pulseRing2Mobile) pulseRing2Mobile.classList.remove('pulse-ring', 'opacity-20');
+            if (waveformMobile) {
+                waveformMobile.classList.remove('opacity-100');
+                waveformMobile.classList.add('opacity-0');
+            }
+            if (pauseButtonMobile) {
+                pauseButtonMobile.classList.remove('opacity-100');
+                pauseButtonMobile.classList.add('opacity-0');
+            }
+            if (secondaryActionsMobile) {
+                secondaryActionsMobile.classList.remove('opacity-0');
+                secondaryActionsMobile.classList.add('opacity-100');
+            }
+            
+            // Desktop animations
+            if (recordingCircleDesktop) {
+                recordingCircleDesktop.classList.remove('bg-blue-700');
+                recordingCircleDesktop.classList.add('bg-blue-600');
+            }
+            if (pulseRing1Desktop) pulseRing1Desktop.classList.remove('pulse-ring', 'opacity-30');
+            if (pulseRing2Desktop) pulseRing2Desktop.classList.remove('pulse-ring', 'opacity-20');
+            if (waveformDesktop) {
+                waveformDesktop.classList.remove('opacity-100');
+                waveformDesktop.classList.add('opacity-0');
+            }
+            if (pauseButtonDesktop) {
+                pauseButtonDesktop.classList.remove('opacity-100');
+                pauseButtonDesktop.classList.add('opacity-0');
+            }
+            if (secondaryActionsDesktop) {
+                secondaryActionsDesktop.classList.remove('opacity-0');
+                secondaryActionsDesktop.classList.add('opacity-100');
+            }
+        }
+
+        function updateStatusMessage(message) {
+            if (statusMessageMobile) statusMessageMobile.textContent = message;
+            if (statusMessageDesktop) statusMessageDesktop.textContent = message;
+        }
+
+        function updateMicDisplay(message) {
+            if (micDisplayMobile) micDisplayMobile.textContent = message;
+            if (micDisplayDesktop) micDisplayDesktop.textContent = message;
+        }
+
+        function updatePossibleMatch(message) {
+            if (possibleMatchMobile) possibleMatchMobile.textContent = message;
+            if (possibleMatchDesktop) possibleMatchDesktop.textContent = message;
+        }
+
+        function updateResultDisplay(message) {
+            if (resultDisplayMobile) resultDisplayMobile.textContent = message;
+            if (resultDisplayDesktop) resultDisplayDesktop.textContent = message;
+            
+            // Add to detection history if it's a valid result
+            if (message && message.includes('🎵') && detectionHistory) {
+                detectionCount++;
+                const historyItem = document.createElement('div');
+                historyItem.className = 'p-3 bg-gray-800 rounded-lg';
+                historyItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">#${detectionCount}</span>
+                        <span class="text-xs text-gray-400">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <div class="mt-2 text-blue-400">${message.replace('🎵 ', '').split(' - Confidence')[0]}</div>
+                `;
+                
+                // Add to top of history
+                if (detectionHistory.firstChild && detectionHistory.firstChild.className.includes('text-gray-400')) {
+                    detectionHistory.removeChild(detectionHistory.firstChild);
+                }
+                detectionHistory.insertBefore(historyItem, detectionHistory.firstChild);
+            }
+        }
+
+        function toggleMainButton(isRecording) {
+            const buttonText = isRecording ? 'Stop Listening' : 'Start Listening';
+            if (mainActionButtonMobile) mainActionButtonMobile.textContent = buttonText;
+            if (mainActionButtonDesktop) mainActionButtonDesktop.textContent = buttonText;
+        }
+
+        async function startRecording() {
+            updateStatusMessage('Requesting microphone access...');
+            updateResultDisplay('');
+            updatePossibleMatch('');
+            updateMicDisplay('');
+            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -93,23 +525,27 @@
                 const microphone = devices.find(device => device.kind === 'audioinput' && device.label === audioTrack.label);
 
                 if (microphone) {
-                    micDisplay.textContent = `Using: ${microphone.label}`;
+                    updateMicDisplay(`Using: ${microphone.label}`);
                 } else {
-                    micDisplay.textContent = `Using: Default Microphone`;
+                    updateMicDisplay(`Using: Default Microphone`);
                 }
                 
-                // Reset for a new recording session
                 audioChunks = [];
                 combinedBlob = null;
-                audioPlayback.classList.add('hidden');
-                audioPlayback.src = '';
+                if (audioPlaybackMobile) {
+                    audioPlaybackMobile.classList.add('hidden');
+                    audioPlaybackMobile.src = '';
+                }
+                if (audioPlaybackDesktop) {
+                    audioPlaybackDesktop.classList.add('hidden');
+                    audioPlaybackDesktop.src = '';
+                }
                 
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
                 mediaRecorder.ondataavailable = async (event) => {
                     if (event.data.size > 0) {
                         audioChunks.push(event.data);
-                        // Combine current chunks and send for recognition
                         combinedBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         await sendAudioChunkForRecognition(combinedBlob);
                     }
@@ -117,52 +553,66 @@
 
                 mediaRecorder.onstop = () => {
                     stream.getTracks().forEach(track => track.stop());
-                    statusMessage.textContent = 'Recording stopped.';
-                    micDisplay.textContent = '';
-                    updateButtonState(false);
+                    updateStatusMessage('Recording stopped');
+                    updateMicDisplay('');
+                    isRecording = false;
+                    toggleMainButton(false);
+                    clearInterval(timerInterval);
+                    stopRecordingAnimation();
                 };
 
                 mediaRecorder.start(RECORDING_CHUNK_SIZE);
-                statusMessage.textContent = 'Listening for a song...';
+                isRecording = true;
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 100);
+                toggleMainButton(true);
+                updateStatusMessage('Listening for a song...');
+                startRecordingAnimation();
                 
             } catch (error) {
                 console.error('Error accessing microphone:', error);
-                statusMessage.textContent = 'Error: Could not access microphone.';
-                micDisplay.textContent = '';
-                updateButtonState(false);
+                updateStatusMessage('Error: Could not access microphone');
+                updateMicDisplay('');
             }
-        });
+        }
 
-        stopRecordButton.addEventListener('click', () => {
+        function stopRecording() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
             }
-        });
+        }
 
-        playButton.addEventListener('click', () => {
+        function playRecording() {
             if (combinedBlob) {
                 const audioUrl = URL.createObjectURL(combinedBlob);
-                audioPlayback.src = audioUrl;
-                audioPlayback.classList.remove('hidden');
-                audioPlayback.play();
-                statusMessage.textContent = 'Playing recorded audio...';
+                if (audioPlaybackMobile) {
+                    audioPlaybackMobile.src = audioUrl;
+                    audioPlaybackMobile.classList.remove('hidden');
+                    audioPlaybackMobile.play();
+                }
+                if (audioPlaybackDesktop) {
+                    audioPlaybackDesktop.src = audioUrl;
+                    audioPlaybackDesktop.classList.remove('hidden');
+                    audioPlaybackDesktop.play();
+                }
+                updateStatusMessage('Playing recorded audio...');
             }
-        });
+        }
 
-        recognizeButton.addEventListener('click', async () => {
+        async function recognizeAudio() {
             if (!combinedBlob) {
-                statusMessage.textContent = 'Please record a song first to recognize.';
+                updateStatusMessage('Please record a song first');
                 return;
             }
 
-            statusMessage.textContent = 'Sending audio to API for recognition...';
-            resultDisplay.textContent = '';
+            updateStatusMessage('Analyzing audio...');
+            updateResultDisplay('');
 
             await sendAudioChunkForRecognition(combinedBlob);
-        });
+        }
 
         async function sendAudioChunkForRecognition(blob) {
-            statusMessage.textContent = `Analyzing ${Math.round(blob.size / 1024)} KB of audio...`;
+            updateStatusMessage(`Analyzing ${Math.round(blob.size / 1024)} KB of audio...`);
             const formData = new FormData();
             formData.append('audio_file', blob, 'recorded_audio.webm');
             formData.append('mode', 'single');
@@ -178,28 +628,67 @@
                 if (response.ok && data.results && data.results.length > 0) {
                     const song = data.results[0];
                     if (song.confidence >= RECOGNITION_CONFIDENCE_THRESHOLD) {
-                        resultDisplay.textContent = `🎵 Match Found: ${song.song} (at ${song.start_time}) with a confidence of ${song.confidence}`;
-                        statusMessage.textContent = 'Recognition successful!';
-                        // Automatically stop recording if the confidence is high enough
+                        updateResultDisplay(`🎵 ${song.song} (${song.start_time}) - Confidence: ${song.confidence}`);
+                        updatePossibleMatch(''); // Clear possible match when we have a confident result
+                        updateStatusMessage('Match found!');
                         if (mediaRecorder && mediaRecorder.state === 'recording') {
                              mediaRecorder.stop();
                         }
                     } else {
-                        resultDisplay.textContent = `🧐 Possible Match: ${song.song} (Confidence: ${song.confidence}). Recording more...`;
-                        statusMessage.textContent = 'Confidence is too low. Recording more...';
-                        // The ondataavailable handler will automatically send the next chunk
+                        updatePossibleMatch(`🧐 Possible: ${song.song} (Confidence: ${song.confidence})`);
+                        updateStatusMessage('Low confidence, recording more...');
                     }
                 } else {
-                    resultDisplay.textContent = `❌ No song found.`;
-                    statusMessage.textContent = 'Recognition complete. No match found.';
+                    updatePossibleMatch(`❌ No song detected yet`);
+                    updateStatusMessage('No match found yet, keep recording...');
                 }
             } catch (error) {
                 console.error('Fetch error:', error);
-                statusMessage.textContent = 'Error communicating with server. Check Flask server.';
+                updateStatusMessage('Server connection error');
             }
         }
 
-        updateButtonState(false);
+        // Set up event listeners for mobile
+        if (mainActionButtonMobile) {
+            mainActionButtonMobile.addEventListener('click', () => {
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
+            });
+        }
+
+        if (playButtonMobile) {
+            playButtonMobile.addEventListener('click', playRecording);
+        }
+
+        if (recognizeButtonMobile) {
+            recognizeButtonMobile.addEventListener('click', recognizeAudio);
+        }
+
+        // Set up event listeners for desktop
+        if (mainActionButtonDesktop) {
+            mainActionButtonDesktop.addEventListener('click', () => {
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
+            });
+        }
+
+        if (playButtonDesktop) {
+            playButtonDesktop.addEventListener('click', playRecording);
+        }
+
+        if (recognizeButtonDesktop) {
+            recognizeButtonDesktop.addEventListener('click', recognizeAudio);
+        }
+
+        // Reset timer display
+        if (timerMobile) timerMobile.textContent = '00:00:00';
+        if (timerDesktop) timerDesktop.textContent = '00:00:00';
     </script>
 </body>
 </html>
