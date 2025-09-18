@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers;
-
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Log;
 use App\Jobs\ProcessVideoJob;
 use getID3;
 use App\Models\VideoProcessingJob;
-
+use Supabase\CreateClient;
+use App\Models\CalaTrxFile;
+use App\Models\CalaTrxCueSheet;
+use App\Models\CalaTrxCueSheetItem;
 
 class VideoController extends Controller
 {
@@ -113,7 +116,7 @@ class VideoController extends Controller
             if ($job->status === 'completed') {
                 $videoPath = storage_path('app/private/public/videos/' . $job->filename);
                 \Log::info('Checking for file at path: ' . $videoPath);
-            
+
                 if (file_exists($videoPath)) {
                     if (file_exists($videoPath)) {
                         $getID3 = new getID3;
@@ -262,5 +265,260 @@ class VideoController extends Controller
         }
 
         return response()->json($job);
+    }
+
+    public function finalizeJob($jobId)
+    {
+        try {
+            $job = VideoProcessingJob::findOrFail($jobId);
+
+            if ($job->status !== 'completed') {
+                return response()->json(['error' => 'Job is not yet complete.'], 409);
+            }
+
+            $videoPath = storage_path('app/private/public/videos/' . $job->filename);
+            if (!file_exists($videoPath)) {
+                throw new \Exception("Video file not found for finalization: " . $videoPath);
+            }
+
+            $getID3 = new \getID3;
+            $fileInfo = $getID3->analyze($videoPath);
+
+            // Get metadata for the cala_trx_file table
+            $fileId = 'TRXF_' . uniqid();
+            $fileDuration = $fileInfo['playtime_seconds'] ?? 0;
+            $fileSizeInMb = round(($fileInfo['filesize'] ?? filesize($videoPath)) / 1048576, 2);
+            $fileFormat = $fileInfo['fileformat'] ?? pathinfo($videoPath, PATHINFO_EXTENSION);
+            $fileUrl = route('video.stream', ['filename' => $job->filename]);
+
+            // Create the file record (this should automatically sync to Supabase if your model is configured)
+            $trxFile = CalaTrxFile::create([
+                'szfileid' => $fileId,
+                'szfilename' => $job->filename,
+                'szurl' => $fileUrl,
+                'szformat' => $fileFormat,
+                'dtmduration' => now(), // Using timestamp instead of duration calculation
+                'decsizemb' => $fileSizeInMb,
+                'szdescription' => 'File processed from job: ' . $jobId,
+                'szstatus' => 'completed',
+                'bactive' => true,
+                'szcreatedby' => 'system',
+                'szupdatedby' => 'system',
+                'dtmcreated' => now(),
+                'dtmupdated' => now(),
+            ]);
+
+            // Parse the job results to get song recognition data
+            $results = $job->results;
+
+            // Handle different result formats
+            if (is_string($results)) {
+                $results = json_decode($results, true);
+            } elseif (is_null($results)) {
+                $results = [];
+            }
+
+            $recognizedSongs = $results['results'] ?? $results ?? [];
+
+            // Get metadata for the cue sheet
+            $cueSheetId = 'CS_' . uniqid();
+            $totalSongs = count($recognizedSongs);
+
+            // Create the cue sheet record
+            $trxCueSheet = CalaTrxCueSheet::create([
+                'szcuesheetid' => $cueSheetId,
+                'szfileid' => $trxFile->szfileid,
+                'dectotalsongs' => $totalSongs,
+                'dtmtotalduration' => now(), // Using timestamp instead of duration calculation
+                'bactive' => true,
+                'szcreatedby' => 'system',
+                'szupdatedby' => 'system',
+                'dtmcreated' => now(),
+                'dtmupdated' => now(),
+            ]);
+
+            // Create cue sheet items from real recognition results
+            $createdItems = [];
+            foreach ($recognizedSongs as $index => $song) {
+                // Extract song information from the recognition results
+                $songTitle = $song['song'] ?? 'Unknown Title';
+
+                // Parse artist and title from the song field (format: "artist - title")
+                $songParts = explode(' - ', $songTitle, 2);
+                $artistName = count($songParts) > 1 ? trim($songParts[0]) : 'Unknown Artist';
+                $actualTitle = count($songParts) > 1 ? trim($songParts[1]) : $songTitle;
+
+                // Parse position (format: "0:00 - 3:55")
+                $position = $song['position'] ?? '0:00 - 0:15';
+                $positionParts = explode(' - ', $position);
+                $startTimeStr = trim($positionParts[0] ?? '0:00');
+                $endTimeStr = trim($positionParts[1] ?? '0:15');
+
+                // Convert time strings to seconds
+                $startTime = $this->timeStringToSeconds($startTimeStr);
+                $endTime = $this->timeStringToSeconds($endTimeStr);
+
+                $confidence = $song['confidence'] ?? 0;
+
+                // Generate IDs
+                $songId = $this->generateOrLookupSongId($actualTitle, $artistName);
+                $artistId = $this->generateOrLookupArtistId($artistName);
+                $composerId = $this->generateOrLookupComposerId($artistName);
+
+                try {
+                    $trxCueSheetItem = CalaTrxCueSheetItem::create([
+                        'szcuesheetid' => $trxCueSheet->szcuesheetid,
+                        'szfileid' => $trxFile->szfileid,
+                        'shitem' => $index + 1,
+                        'szswc' => $song['swc'] ?? ('SWC_' . uniqid()),
+                        'szisrc' => $song['isrc'] ?? ('ISRC_' . uniqid()),
+                        'songid' => $songId,
+                        'szsongtitle' => $actualTitle,
+                        'szcomposerid' => $composerId,
+                        'szcomposername' => $artistName,
+                        'szartistid' => $artistId,
+                        'szartistname' => $artistName,
+                        'dtmstarttime' => now(), // Using timestamp
+                        'dtmendtime' => now(), // Using timestamp
+                        'dtmduration' => now(), // Using timestamp
+                        'rn_songsong_id' => $confidence,
+                        'bactive' => true,
+                        'szcreatedby' => 'system',
+                        'szupdatedby' => 'system',
+                        'dtmcreated' => now(),
+                        'dtmupdated' => now(),
+                    ]);
+
+                    $createdItems[] = $trxCueSheetItem;
+                } catch (\Exception $itemException) {
+                    Log::warning("Failed to create cue sheet item for song: " . $actualTitle . " - " . $itemException->getMessage());
+                    continue;
+                }
+            }
+
+            // If no songs were recognized or all failed, create a placeholder item
+            if (empty($createdItems)) {
+                $trxCueSheetItem = CalaTrxCueSheetItem::create([
+                    'szcuesheetid' => $trxCueSheet->szcuesheetid,
+                    'szfileid' => $trxFile->szfileid,
+                    'shitem' => 1,
+                    'szswc' => 'SWC_NO_RECOGNITION',
+                    'szisrc' => 'ISRC_NO_RECOGNITION',
+                    'songid' => 'SONG_NO_RECOGNITION',
+                    'szsongtitle' => 'No Songs Recognized',
+                    'szcomposerid' => 'COMP_NO_RECOGNITION',
+                    'szcomposername' => 'Unknown',
+                    'szartistid' => 'ART_NO_RECOGNITION',
+                    'szartistname' => 'Unknown',
+                    'dtmstarttime' => now(),
+                    'dtmendtime' => now(),
+                    'dtmduration' => now(),
+                    'rn_songsong_id' => 0,
+                    'bactive' => true,
+                    'szcreatedby' => 'system',
+                    'szupdatedby' => 'system',
+                    'dtmcreated' => now(),
+                    'dtmupdated' => now(),
+                ]);
+
+                $createdItems[] = $trxCueSheetItem;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'File and cue sheet records finalized successfully.',
+                'data' => [
+                    'file' => $trxFile,
+                    'cue_sheet' => $trxCueSheet,
+                    'items' => $createdItems,
+                    'total_songs_recognized' => count($recognizedSongs),
+                    'total_items_created' => count($createdItems)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to finalize job {$jobId}: " . $e->getMessage() . ' in file ' . $e->getFile() . ' on line ' . $e->getLine());
+            return response()->json(['error' => 'Failed to finalize job record: ' . $e->getMessage()], 500);
+        }
+    }
+
+    private function generateOrLookupSongId($title, $artist)
+    {
+        // First, try to find existing song in CALA_MDM_SONGS table
+        // This is a placeholder - implement according to your database structure
+
+        // For now, generate a unique ID
+        return 'SONG_' . md5($title . $artist);
+    }
+
+    /**
+     * Helper method to generate or lookup artist ID
+     */
+    private function generateOrLookupArtistId($artistName)
+    {
+        // First, try to find existing artist in your artist table
+        // This is a placeholder - implement according to your database structure
+
+        // For now, generate a unique ID
+        return 'ART_' . md5($artistName);
+    }
+
+    /**
+     * Helper method to generate or lookup composer ID
+     */
+    private function generateOrLookupComposerId($composerName)
+    {
+        // First, try to find existing composer in your composer table
+        // This is a placeholder - implement according to your database structure
+
+        // For now, generate a unique ID
+        return 'COMP_' . md5($composerName);
+    }
+
+    private function timeStringToSeconds($timeString)
+    {
+        $parts = explode(':', $timeString);
+        $seconds = 0;
+
+        if (count($parts) == 2) {
+            // MM:SS format
+            $seconds = (int) $parts[0] * 60 + (int) $parts[1];
+        } elseif (count($parts) == 3) {
+            // H:MM:SS format
+            $seconds = (int) $parts[0] * 3600 + (int) $parts[1] * 60 + (int) $parts[2];
+        }
+
+        return $seconds;
+    }
+
+    /**
+     * Helper method to convert seconds to time format (HH:MM:SS)
+     */
+    private function secondsToTime($seconds)
+    {
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $seconds = $seconds % 60;
+
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+    }
+
+    public function showDetail($szcuesheetid, $shitem)
+    {
+        $item = CalaTrxCueSheetItem::where([
+            ['szcuesheetid', $szcuesheetid],
+            ['shitem', $shitem]
+        ])->first();
+
+        if (!$item) {
+            return response()->json(['error' => 'Item not found'], 404);
+        }
+
+        return response()->json([
+            'song_title' => $item->szsongtitle,
+            'artist_name' => $item->szartistname,
+            'composer_name' => $item->szcomposername,
+            // Add more fields if needed
+        ]);
     }
 }

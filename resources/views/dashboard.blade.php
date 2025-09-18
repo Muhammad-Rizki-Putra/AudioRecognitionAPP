@@ -202,6 +202,8 @@
             const cancelBtn = document.getElementById('cancelBtn');
             const urlInput = document.getElementById('url');
             const returnToUploadBtn = document.getElementById('returnToUploadBtn');
+            let currentProcessData = null;
+            let currentSongResults = [];
             
             resultsTableBody.addEventListener('click', async (event) => {
                 if (event.target.classList.contains('load-btn')) {
@@ -445,6 +447,18 @@
                             updateRowInDOM(job.id, updates);
                             updateLocalStorage(job.id, updates);
 
+                            fetch(`/finalize-job/${job.id}`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), // Important for security
+                                    'Accept': 'application/json'
+                                }
+                            })
+                                .then(response => response.json())
+                                .then(finalizeData => {
+                                    console.log('Finalization response:', finalizeData);
+                                })
+
                         } else if (data.status === 'failed') {
                             const updates = {
                                 totalDuration: 'Failed',
@@ -548,6 +562,8 @@
             }
 
             function displaySongResults(results) {
+                
+                currentSongResults = results;
                 const songResultsContainer = document.getElementById('song-results');
 
                 songResultsContainer.innerHTML = '';
@@ -589,7 +605,7 @@
                         const duration = secondsToTime(durationInSeconds);
 
                         row.innerHTML = `
-                <td class="py-4 px-4"><input type="checkbox" class="bg-gray-900 border-gray-600 rounded focus:ring-blue-600"></td>
+                <td class="py-4 px-4"><input type="checkbox" data-index="${index}" class="bg-gray-900 border-gray-600 rounded song-checkbox focus:ring-blue-600"></td>
                 <td class="py-4 px-2">${index + 1}</td>
                 <td scope="row" class="py-4 px-6 font-medium whitespace-nowrap text-xs">
                     <div>${song.song || 'Unknown Song'}</div>
@@ -598,7 +614,11 @@
                 <td class="py-4 px-6 text-xs">${startTime || 'N/A'}</td>
                 <td class="py-4 px-6 text-xs">${endTime || 'N/A'}</td>
                 <td class="py-4 px-6 text-xs">${duration || 'N/A'}</td>
-                <td class="py-4 px-6 text-xs text-center text-lg font-bold text-gray-400">⋮</td>
+                <td class="py-4 px-6 text-xs text-center text-lg font-bold text-gray-400">
+        <button class="song-detail-btn"
+                data-cuesheetid="${song.szcuesheetid}"
+                data-shitem="${song.shitem}">⋮</button>
+    </td>
             `;
                         tbody.appendChild(row);
                     });
@@ -697,6 +717,41 @@
                 }
             });
 
+            document.querySelectorAll('.song-detail-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const szcuesheetid = btn.getAttribute('data-cuesheetid');
+                    const shitem = btn.getAttribute('data-shitem');
+                    try {
+                        const response = await fetch(`/cuesheet-item/${szcuesheetid}/${shitem}`);
+                        if (!response.ok) throw new Error('Failed to fetch details');
+                        const details = await response.json();
+
+                        showSongDetailModal(details);
+                    } catch (err) {
+                        showSongDetailModal({ song_title: 'Not found', artist_name: '-', composer_name: '-' });
+                    }
+                });
+            });
+
+            function showSongDetailModal(details) {
+                // Remove previous modal
+                const oldModal = document.getElementById('song-detail-modal');
+                if (oldModal) oldModal.remove();
+
+                // Create modal
+                const modal = document.createElement('div');
+                modal.id = 'song-detail-modal';
+                modal.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 text-white p-6 rounded-lg shadow-lg z-50';
+                modal.innerHTML = `
+        <h3 class="font-bold text-lg mb-2">Song Details</h3>
+        <p><strong>Song Title:</strong> ${details.song_title || 'Unknown'}</p>
+        <p><strong>Artist:</strong> ${details.artist_name || 'Unknown'}</p>
+        <p><strong>Composer:</strong> ${details.composer_name || 'Unknown'}</p>
+        <button class="mt-4 bg-blue-700 px-4 py-2 rounded" onclick="document.getElementById('song-detail-modal').remove()">Close</button>
+    `;
+                document.body.appendChild(modal);
+            }
+
 
             // Cancel button
             cancelBtn.addEventListener('click', () => {
@@ -714,28 +769,56 @@
                     return;
                 }
 
-                const endTime = new Date(); // Capture the save/end time
+                // Get all checked song checkboxes
+                const checkedBoxes = document.querySelectorAll('.song-checkbox:checked');
 
-                // Create data object with unique ID
+                // If nothing is checked, optional: alert or handle
+                if (checkedBoxes.length === 0) {
+                    alert('Please select at least one song to save.');
+                    return;
+                }
+
+                // Sum durations for checked songs only
+                let totalDurationSeconds = 0;
+                checkedBoxes.forEach(checkbox => {
+                    const index = parseInt(checkbox.getAttribute('data-index'));
+                    const song = currentSongResults[index];
+                    if (song && song.position) {
+                        const timeParts = song.position.split(' - ');
+                        const startSeconds = timeToSeconds(timeParts[0]);
+                        const endSeconds = timeToSeconds(timeParts[1]);
+                        const duration = endSeconds - startSeconds;
+                        totalDurationSeconds += duration > 0 ? duration : 0;
+                    }
+                });
+
+                // Format the summed duration for display
+                const formattedDuration = formatDuration(totalDurationSeconds);
+
+                // Save data
+                const endTime = new Date();
                 const rowData = {
-                    id: Date.now(), // Unique ID for this entry
-                    fileName: currentProcessData.fileName,
-                    totalSongs: currentProcessData.totalSongs,
-                    totalDuration: currentProcessData.totalDuration,
+                    id: Date.now(),
+                    fileName: currentProcessData.fileName, // Always set!
+                    totalSongs: checkedBoxes.length,
+                    totalDuration: totalDurationSeconds,   // Save actual seconds, format for table
                     startTime: formatDateTime(currentProcessData.startTime),
                     endTime: formatDateTime(endTime),
-                    status: 'Saved'
+                    status: 'Saved',
+                    results: currentSongResults,           // Optionally save results for later load
+                    video_url: currentProcessData.video_url // If available
                 };
 
-                // Save to localStorage
+                // Save to localStorage as you do now
                 saveToLocalStorage(rowData);
 
                 // Create and add the new row to the table
-                const newRow = createTableRow(rowData);
+                const newRow = createTableRow(rowData); // Table should format duration with formatDuration
                 resultsTableBody.prepend(newRow);
 
-                // Clear the temporary data to prevent duplicate saves
+                // Clear temp data if needed
                 currentProcessData = null;
+                currentSongResults = [];
             });
 
             // Save data to localStorage
@@ -855,10 +938,15 @@
                     // Hide drag area and show video player
                     document.getElementById('dragArea').classList.add('hidden');
                     document.getElementById('video-container').classList.remove('hidden');
-
-                    // Check the source and set the video URL
                     const videoElement = document.getElementById('main-video');
+
                     videoElement.src = `/stream/${data.filename}`;
+
+                    currentProcessData = {
+                        fileName: data.filename || 'YouTube Video',
+                        startTime: data.start_time || new Date(), // use actual if available
+                    };
+                    currentSongResults = data.results || [];
 
                     // Display the song results in the right pane, no JSON.parse needed
                     displaySongResults(data.results || []);

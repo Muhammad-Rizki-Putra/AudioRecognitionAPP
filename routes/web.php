@@ -13,7 +13,7 @@ Route::get('/welcome', function () {
     return view('welcome');
 });
 
-Route::get('/test1', function () {
+Route::get('/single', function () {
     return view('singlePage');
 });
 
@@ -44,3 +44,5 @@ Route::post('/process-youtube', [VideoController::class, 'processYouTube'])->nam
 Route::get('/job-status/{cueSheet}', [VideoController::class, 'checkStatus']);
 
 Route::get('/jobs/{jobId}', [VideoController::class, 'show']);
+Route::post('/finalize-job/{jobId}', [VideoController::class, 'finalizeJob']);
+Route::get('/cuesheet-item/{szcuesheetid}/{shitem}', [VideoController::class, 'showDetail']);
