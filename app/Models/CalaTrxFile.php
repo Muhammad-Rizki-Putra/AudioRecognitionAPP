@@ -6,8 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class CalaTrxFile extends Model
 {
-    // If the table name is not 'cala_trx_files', you must specify it.
+    // The table associated with the model.
     protected $table = 'cala_trx_file';
+
+    // Make sure timestamps are enabled
+    public $timestamps = true;
+
+    // Define custom timestamp column names to match Supabase
+    const CREATED_AT = 'dtmcreated';
+    const UPDATED_AT = 'dtmupdated';
+    protected $primaryKey = 'szfileid';
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     // The columns that can be mass assigned.
     protected $fillable = [
@@ -17,10 +27,14 @@ class CalaTrxFile extends Model
         'szformat',
         'dtmduration',
         'decsizemb',
-        'szdescription',
+        'szdescription', // This must be a number
         'szstatus',
         'bactive',
         'szcreatedby',
-        'szupdatedby',
+        'szupdateby'
     ];
+
+    public function cueSheet(){
+        return $this->hasMany(CalaTrxCueSheet::class, 'szfileid','szfileid');
+    }
 }
