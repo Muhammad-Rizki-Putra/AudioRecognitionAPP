@@ -97,8 +97,9 @@ class ProcessVideoJob implements ShouldQueue
         $outputPath = $downloadDir . DIRECTORY_SEPARATOR . $filename;
         $ytDlpPath = env('YT_DLP_PATH', 'yt-dlp');
 
+        // This line is the fix: No quotes around %s for output and url
         $command = sprintf(
-            '%s --no-playlist --no-overwrites --no-post-overwrites --no-keep-video --no-cache-dir --no-mtime --no-part --no-write-thumbnail --no-write-description --no-write-info-json --no-write-annotations --no-write-sub --convert-subs none -f "best[ext=mp4]" -o "%s" "%s"',
+            '%s --no-playlist --no-overwrites --no-post-overwrites --no-keep-video --no-cache-dir --no-mtime --no-part --no-write-thumbnail --no-write-description --no-write-info-json --no-write-annotations --no-write-sub --convert-subs none -f "best[ext=mp4]" -o %s %s',
             escapeshellarg($ytDlpPath),
             escapeshellarg($outputPath),
             escapeshellarg($url)
@@ -112,12 +113,11 @@ class ProcessVideoJob implements ShouldQueue
 
         Log::info("yt-dlp output: " . implode("\n", $output));
 
-        $fileDownloaded = file_exists($outputPath);
-        if ($returnCode !== 0 && !$fileDownloaded) {
+        if ($returnCode !== 0) {
             throw new \Exception("yt-dlp failed: " . implode("\n", $output));
         }
 
-        if (!$fileDownloaded) {
+        if (!file_exists($outputPath)) {
             throw new \Exception("Downloaded file not found at: " . $outputPath);
         }
 
