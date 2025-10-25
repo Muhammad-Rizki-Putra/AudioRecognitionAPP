@@ -265,14 +265,11 @@
                 }
             }
 
-            // Helper function to create a table row from data
-            // Replace your old createTableRow function with this new one
-            function createTableRow(data) {
+           function createTableRow(data) {
                 const newRow = document.createElement('tr');
-                newRow.className = 'bg-black'; // Set a base background color for the row
+                newRow.className = 'bg-black';
                 newRow.setAttribute('data-job-id', data.id);
 
-                // --- Status Color Logic (same as before) ---
                 let statusColorClass = '';
                 if (data.status === 'Completed' || data.status === 'Success' || data.status === 'Saved') {
                     statusColorClass = 'text-green-400';
@@ -282,39 +279,37 @@
                     statusColorClass = 'text-red-400';
                 }
 
-                // --- Button State Logic (for inside the dropdown) ---
                 const isLoadDisabled = (data.status !== 'Completed' && data.status !== 'Saved') || data.totalSongs == 0;
                 const loadClasses = isLoadDisabled ? 'text-gray-500' : 'hover:bg-gray-600 hover:text-white';
 
-                // --- New Row HTML with card styling and dropdown ---
                 newRow.innerHTML = `
-        <th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap bg-black rounded-l-lg">${data.fileName}</th>
-        <td class="px-6 py-4 bg-black text-center">${data.totalSongs}</td>
-        <td class="px-6 py-4 bg-black text-center">${formatDuration(data.totalDuration)}</td>
-        <td class="px-6 py-4 bg-black text-center">${data.startTime}</td>
-        <td class="px-6 py-4 bg-black text-center">${data.endTime}</td>
-        <td class="px-6 py-4 bg-black text-center ${statusColorClass}">${data.status}</td>
-        <td class="px-6 py-4 bg-black text-center rounded-r-lg">
-            <button id="action-menu-button-${data.id}" data-dropdown-toggle="action-menu-${data.id}" class="inline-flex items-center p-2 text-sm font-medium text-center text-gray-400 rounded-lg hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-700" type="button">
-                <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 4 15">
-                    <path d="M3.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6.041a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 5.959a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>
-                </svg>
-            </button>
-            <div id="action-menu-${data.id}" class="z-10 hidden bg-gray-700 divide-y divide-gray-600 rounded-lg shadow p-1">
-                <ul class="py-2 text-sm text-gray-200" aria-labelledby="action-menu-button-${data.id}">
-                    <li>
-                        <button class="load-btn block w-full px-1 text-center py-1 ${loadClasses}"  ''}>Load</button>
-                    </li>
-                    <li>
-                        <button class="delete-btn block w-full px-1 py-1 text-center text-red-500 hover:bg-gray-600 hover:text-red-400">Delete</button>
-                    </li>
-                </ul>
-            </div>
-        </td>
-    `;
+                <th scope="row" class="px-6 py-4 font-medium text-white whitespace-nowrap bg-black rounded-l-lg">${data.fileName}</th>
+                <td class="px-6 py-4 bg-black text-center">${data.totalSongs}</td>
+                <td class="px-6 py-4 bg-black text-center">${formatDuration(data.totalDuration)}</td>
+                <td class="px-6 py-4 bg-black text-center">${data.startTime}</td>
+                <td class="px-6 py-4 bg-black text-center">${data.endTime}</td>
+                <td class="px-6 py-4 bg-black text-center ${statusColorClass}">${data.status}</td>
+                <td class="px-6 py-4 bg-black text-center rounded-r-lg">
+                    <button id="action-menu-button-${data.id}" data-dropdown-toggle="action-menu-${data.id}" class="inline-flex items-center p-2 text-sm font-medium text-center text-gray-400 rounded-lg hover:bg-gray-800 focus:ring-4 focus:outline-none focus:ring-gray-700" type="button" 
+                            aria-label="Action menu" title="Action menu">
+                        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 4 15">
+                            <path d="M3.5 1.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 6.041a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm0 5.959a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/>
+                        </svg>
+                    </button>
+                    <div id="action-menu-${data.id}" class="z-10 hidden bg-gray-700 divide-y divide-gray-600 rounded-lg shadow p-1">
+                        <ul class="py-2 text-sm text-gray-200" aria-labelledby="action-menu-button-${data.id}">
+                            <li>
+                                <button class="load-btn block w-full px-1 text-center py-1 ${loadClasses}" ${isLoadDisabled ? 'disabled' : ''}>Load</button>
+                            </li>
+                            <li>
+                                <button class="delete-btn block w-full px-1 py-1 text-center text-red-500 hover:bg-gray-600 hover:text-red-400">Delete</button>
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+            `;
 
-                // The existing event listeners for '.delete-btn' and '.load-btn' will still work
-                // because of event delegation on the table body. No changes needed there.
+                initFlowbite();
 
                 return newRow;
             }
@@ -351,18 +346,9 @@
             });
 
             async function handleFileUpload(file) {
-
-                const duration = file.duration;
                 const startTime = formatDateTime(new Date());
-
-                // Show a loading/processing state
-                // dragArea.classList.add('hidden'); // Hide the drag area
-
-                // Use FormData to package the file for sending
                 const formData = new FormData();
                 formData.append('video', file);
-
-                
 
                 try {
                     const response = await fetch("{{ route('video.process') }}", {
@@ -375,33 +361,39 @@
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Server responded with an error! Status: ${response.status} - ${response.statusText}`);
+                        throw new Error(`Server responded with ${response.status}`);
                     }
 
                     const data = await response.json();
 
                     if (data.success) {
-                        // Job was queued successfully
                         const jobId = data.job_id;
-                        jobIdDisplay.textContent = jobId;
-                        statusMessage.textContent = 'Video queued for processing...';
 
-                        // Add to table with "Processing" status
+                        // --- THIS IS THE NEW LOGIC ---
+                        let existingRow = document.querySelector(`tr[data-job-id="${jobId}"]`);
+
                         const rowData = {
                             id: jobId,
                             fileName: file.name,
                             totalSongs: 'Processing...',
                             totalDuration: 'Processing...',
-                            startTime: startTime, // Use the captured start time
+                            startTime: startTime,
                             endTime: 'Processing...',
                             status: 'Processing'
                         };
 
-                        const newRow = createTableRow(rowData);
-                        resultsTableBody.prepend(newRow);
+                        if (existingRow) {
+                            console.log(`Job ${jobId} already in table. Updating status.`);
+                            updateRowInDOM(jobId, rowData);
+                        } else {
+                            console.log(`Adding new row for job ${jobId}.`);
+                            const newRow = createTableRow(rowData);
+                            resultsTableBody.prepend(newRow);
+                        }
 
-                        // Save to localStorage
+                        // This will now correctly "upsert" the data
                         saveToLocalStorage(rowData);
+
                     } else {
                         throw new Error(data.message || 'Failed to queue video');
                     }
@@ -409,7 +401,6 @@
                 } catch (error) {
                     console.error('Upload failed:', error);
                     songResults.innerHTML = `<p class="text-red-400 text-center">Processing failed. Please try again.</p>`;
-                    dragArea.classList.remove('hidden'); // Show the drag area again on error
                 }
             }
 
@@ -647,26 +638,18 @@
             // YouTube processing
             processUrlBtn.addEventListener('click', async () => {
                 const youtubeUrl = urlInput.value.trim();
-
                 if (!youtubeUrl) {
                     alert('Please enter a YouTube URL');
                     return;
                 }
-
                 if (!isValidYouTubeUrl(youtubeUrl)) {
                     alert('Please enter a valid YouTube URL');
                     return;
                 }
 
                 try {
-                    // Capture start time
                     const startTime = formatDateTime(new Date());
-
-                    // Show loading state and disable button
                     processUrlBtn.disabled = true;
-                    songResults.innerHTML = `<div class="flex flex-col items-center justify-center">
-                        <!-- Loading spinner HTML -->
-                    </div>`;
 
                     const response = await fetch("{{ route('video.process.youtube') }}", {
                         method: 'POST',
@@ -679,33 +662,42 @@
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Server responded with an error! Status: ${response.status} - ${response.statusText}`);
+                        throw new Error(`Server responded with ${response.status}`);
                     }
 
                     const data = await response.json();
 
                     if (data.success) {
-                        // Job was queued successfully
                         const jobId = data.job_id;
-                        jobIdDisplay.textContent = jobId;
-                        statusMessage.textContent = 'YouTube video queued for processing...';
 
-                        // Add to table with "Processing" status
+                        // --- THIS IS THE NEW LOGIC ---
+                        // Check if a row with this ID already exists
+                        let existingRow = document.querySelector(`tr[data-job-id="${jobId}"]`);
+
                         const rowData = {
                             id: jobId,
                             fileName: 'YouTube Video',
                             totalSongs: 'Processing...',
                             totalDuration: 'Processing...',
-                            startTime: startTime, // Use the captured start time
+                            startTime: startTime,
                             endTime: 'Processing...',
                             status: 'Processing'
                         };
 
-                        const newRow = createTableRow(rowData);
-                        resultsTableBody.prepend(newRow);
+                        if (existingRow) {
+                            // If it exists, just update it
+                            console.log(`Job ${jobId} already in table. Updating status.`);
+                            updateRowInDOM(jobId, rowData);
+                        } else {
+                            // If it doesn't exist, create a new one
+                            console.log(`Adding new row for job ${jobId}.`);
+                            const newRow = createTableRow(rowData);
+                            resultsTableBody.prepend(newRow);
+                        }
 
-                        // Save to localStorage
+                        // This will now correctly "upsert" the data
                         saveToLocalStorage(rowData);
+
                     } else {
                         throw new Error(data.message || 'Failed to queue YouTube video');
                     }
@@ -713,6 +705,7 @@
                 } catch (error) {
                     console.error('YouTube processing failed:', error);
                     songResults.innerHTML = `<p class="text-red-400 text-center">Processing failed. Please try again.</p>`;
+                } finally {
                     processUrlBtn.disabled = false;
                 }
             });
@@ -821,24 +814,23 @@
                 currentSongResults = [];
             });
 
-            // Save data to localStorage
             function saveToLocalStorage(data) {
-                // Get existing data or initialize empty array
                 const existingData = JSON.parse(localStorage.getItem('videoProcessingData')) || [];
 
-                // Add new data
-                existingData.push(data);
+                const itemIndex = existingData.findIndex(item => item.id == data.id);
 
-                // Save back to localStorage
+                if (itemIndex > -1) {
+                    existingData[itemIndex] = { ...existingData[itemIndex], ...data };
+                } else {
+                    existingData.push(data);
+                }
+
                 localStorage.setItem('videoProcessingData', JSON.stringify(existingData));
             }
 
-            // Delete row from localStorage
             function deleteRow(rowElement, id) {
-                // Remove from UI
                 rowElement.remove();
 
-                // Remove from localStorage
                 const existingData = JSON.parse(localStorage.getItem('videoProcessingData')) || [];
                 const updatedData = existingData.filter(item => item.id != id); 
                 localStorage.setItem('videoProcessingData', JSON.stringify(updatedData));

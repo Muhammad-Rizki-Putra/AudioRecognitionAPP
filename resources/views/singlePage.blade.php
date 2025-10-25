@@ -147,19 +147,7 @@
             <!-- Possible Match Display -->
             <div id="possibleMatchMobile" class="text-center text-blue-400 font-semibold px-4 min-h-8"></div>
 
-            <!-- Audio Waveform -->
-            <div id="waveformMobile" class="flex items-end justify-center space-x-1 h-8 opacity-0">
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.1s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.2s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.3s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.4s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.5s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.6s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.7s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.8s;"></div>
-                <div class="w-1 bg-blue-400 wave-animation" style="animation-delay: 0.9s;"></div>
-            </div>
+        
 
             <!-- Microphone Info -->
             <div id="micDisplayMobile" class="text-xs text-gray-500 text-center px-4"></div>
@@ -256,32 +244,7 @@
                     </div>
                 </div>
 
-                <!-- Audio Waveform -->
-                <div class="desktop-side-panel">
-                    <h2 class="text-lg font-semibold text-center mb-4 text-blue-300">Audio Waveform</h2>
-                    <div id="waveformDesktop" class="desktop-waveform flex items-end justify-center space-x-1 opacity-0">
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.1s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.2s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.3s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.4s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.5s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.6s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.7s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.8s;"></div>
-                        <div class="w-2 bg-blue-400 wave-animation" style="animation-delay: 0.9s;"></div>
-                    </div>
-                    
-                    <!-- Secondary Actions -->
-                    <div class="flex space-x-4 justify-center opacity-0" id="secondaryActionsDesktop">
-                        <button id="playButtonDesktop" class="px-6 py-2 bg-gray-700 text-gray-300 rounded-full font-medium">
-                            Play Recording
-                        </button>
-                        <button id="recognizeButtonDesktop" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full font-medium">
-                            Recognize
-                        </button>
-                    </div>
-                </div>
+                
             </div>
 
             <!-- Right Panel - Results -->
@@ -321,6 +284,7 @@
     </div>
 
     <script>
+        // --- Cleaned up variable declarations ---
         // Mobile elements
         const mainActionButtonMobile = document.getElementById('mainActionButtonMobile');
         const pauseButtonMobile = document.getElementById('pauseButtonMobile');
@@ -358,16 +322,22 @@
         const sensitivitySlider = document.getElementById('sensitivity');
         const sensitivityValue = document.getElementById('sensitivityValue');
 
+        // --- Cleaned up State Variables ---
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
         let startTime;
         let timerInterval;
-        const RECOGNITION_CONFIDENCE_THRESHOLD = 15;
-        const RECORDING_CHUNK_SIZE = 3000;
         let combinedBlob;
         let detectionCount = 0;
 
+        // Variables for the new incremental logic
+        const RECOGNITION_CONFIDENCE_THRESHOLD = 3; // You can tune this
+        const RECORDING_CHUNK_DURATION = 6300; // Recognize every 3 seconds
+        let isMatchFound = false;
+        let isRecognizing = false;
+
+        // --- The rest of your functions ---
         // Update sensitivity value display
         if (sensitivitySlider) {
             sensitivitySlider.addEventListener('input', () => {
@@ -377,93 +347,13 @@
 
         function updateTimer() {
             if (!startTime) return;
-            
             const elapsed = Date.now() - startTime;
             const hours = Math.floor(elapsed / 3600000);
             const minutes = Math.floor((elapsed % 3600000) / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
-            
             const timerText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            // Update both mobile and desktop timers
             if (timerMobile) timerMobile.textContent = timerText;
             if (timerDesktop) timerDesktop.textContent = timerText;
-        }
-
-        function startRecordingAnimation() {
-            // Mobile animations
-            if (recordingCircleMobile) {
-                recordingCircleMobile.classList.remove('bg-blue-600');
-                recordingCircleMobile.classList.add('bg-blue-700');
-            }
-            if (pulseRing1Mobile) pulseRing1Mobile.classList.add('pulse-ring', 'opacity-30');
-            if (pulseRing2Mobile) pulseRing2Mobile.classList.add('pulse-ring', 'opacity-20');
-            if (waveformMobile) {
-                waveformMobile.classList.remove('opacity-0');
-                waveformMobile.classList.add('opacity-100');
-            }
-            if (pauseButtonMobile) {
-                pauseButtonMobile.classList.remove('opacity-0');
-                pauseButtonMobile.classList.add('opacity-100');
-            }
-            
-            // Desktop animations
-            if (recordingCircleDesktop) {
-                recordingCircleDesktop.classList.remove('bg-blue-600');
-                recordingCircleDesktop.classList.add('bg-blue-700');
-            }
-            if (pulseRing1Desktop) pulseRing1Desktop.classList.add('pulse-ring', 'opacity-30');
-            if (pulseRing2Desktop) pulseRing2Desktop.classList.add('pulse-ring', 'opacity-20');
-            if (waveformDesktop) {
-                waveformDesktop.classList.remove('opacity-0');
-                waveformDesktop.classList.add('opacity-100');
-            }
-            if (pauseButtonDesktop) {
-                pauseButtonDesktop.classList.remove('opacity-0');
-                pauseButtonDesktop.classList.add('opacity-100');
-            }
-        }
-
-        function stopRecordingAnimation() {
-            // Mobile animations
-            if (recordingCircleMobile) {
-                recordingCircleMobile.classList.remove('bg-blue-700');
-                recordingCircleMobile.classList.add('bg-blue-600');
-            }
-            if (pulseRing1Mobile) pulseRing1Mobile.classList.remove('pulse-ring', 'opacity-30');
-            if (pulseRing2Mobile) pulseRing2Mobile.classList.remove('pulse-ring', 'opacity-20');
-            if (waveformMobile) {
-                waveformMobile.classList.remove('opacity-100');
-                waveformMobile.classList.add('opacity-0');
-            }
-            if (pauseButtonMobile) {
-                pauseButtonMobile.classList.remove('opacity-100');
-                pauseButtonMobile.classList.add('opacity-0');
-            }
-            if (secondaryActionsMobile) {
-                secondaryActionsMobile.classList.remove('opacity-0');
-                secondaryActionsMobile.classList.add('opacity-100');
-            }
-            
-            // Desktop animations
-            if (recordingCircleDesktop) {
-                recordingCircleDesktop.classList.remove('bg-blue-700');
-                recordingCircleDesktop.classList.add('bg-blue-600');
-            }
-            if (pulseRing1Desktop) pulseRing1Desktop.classList.remove('pulse-ring', 'opacity-30');
-            if (pulseRing2Desktop) pulseRing2Desktop.classList.remove('pulse-ring', 'opacity-20');
-            if (waveformDesktop) {
-                waveformDesktop.classList.remove('opacity-100');
-                waveformDesktop.classList.add('opacity-0');
-            }
-            if (pauseButtonDesktop) {
-                pauseButtonDesktop.classList.remove('opacity-100');
-                pauseButtonDesktop.classList.add('opacity-0');
-            }
-            if (secondaryActionsDesktop) {
-                secondaryActionsDesktop.classList.remove('opacity-0');
-                secondaryActionsDesktop.classList.add('opacity-100');
-            }
         }
 
         function updateStatusMessage(message) {
@@ -482,27 +372,11 @@
         }
 
         function updateResultDisplay(message) {
-            if (resultDisplayMobile) resultDisplayMobile.textContent = message;
-            if (resultDisplayDesktop) resultDisplayDesktop.textContent = message;
-            
-            // Add to detection history if it's a valid result
-            if (message && message.includes('🎵') && detectionHistory) {
-                detectionCount++;
-                const historyItem = document.createElement('div');
-                historyItem.className = 'p-3 bg-gray-800 rounded-lg';
-                historyItem.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <span class="font-semibold">#${detectionCount}</span>
-                        <span class="text-xs text-gray-400">${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <div class="mt-2 text-blue-400">${message.replace('🎵 ', '').split(' - Confidence')[0]}</div>
-                `;
-                
-                // Add to top of history
-                if (detectionHistory.firstChild && detectionHistory.firstChild.className.includes('text-gray-400')) {
-                    detectionHistory.removeChild(detectionHistory.firstChild);
-                }
-                detectionHistory.insertBefore(historyItem, detectionHistory.firstChild);
+            if (resultDisplayMobile) {
+                resultDisplayMobile.innerHTML = message;
+            }
+            if (resultDisplayDesktop) {
+                resultDisplayDesktop.innerHTML = message;
             }
         }
 
@@ -517,19 +391,16 @@
             updateResultDisplay('');
             updatePossibleMatch('');
             updateMicDisplay('');
-            
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const audioTrack = stream.getAudioTracks()[0];
                 const microphone = devices.find(device => device.kind === 'audioinput' && device.label === audioTrack.label);
 
-                if (microphone) {
-                    updateMicDisplay(`Using: ${microphone.label}`);
-                } else {
-                    updateMicDisplay(`Using: Default Microphone`);
-                }
-                
+                // Cleaned up state reset
+                isMatchFound = false;
+                isRecognizing = false;
                 audioChunks = [];
                 combinedBlob = null;
                 if (audioPlaybackMobile) {
@@ -540,35 +411,48 @@
                     audioPlaybackDesktop.classList.add('hidden');
                     audioPlaybackDesktop.src = '';
                 }
-                
+
+                if (microphone) {
+                    updateMicDisplay(`Using: ${microphone.label}`);
+                } else {
+                    updateMicDisplay(`Using: Default Microphone`);
+                }
+
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-                mediaRecorder.ondataavailable = async (event) => {
+                mediaRecorder.ondataavailable = (event) => {
+                    if (isMatchFound || isRecognizing) return;
                     if (event.data.size > 0) {
                         audioChunks.push(event.data);
-                        combinedBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        await sendAudioChunkForRecognition(combinedBlob);
+                        const currentBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        sendAudioForRecognition(currentBlob);
                     }
                 };
 
                 mediaRecorder.onstop = () => {
                     stream.getTracks().forEach(track => track.stop());
-                    updateStatusMessage('Recording stopped');
+                    if (audioChunks.length > 0) {
+                        combinedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    }
+                    
+                    if (!isMatchFound) {
+                        updateStatusMessage('Recording stopped');
+                    }
+                    
                     updateMicDisplay('');
                     isRecording = false;
                     toggleMainButton(false);
                     clearInterval(timerInterval);
-                    stopRecordingAnimation();
                 };
 
-                mediaRecorder.start(RECORDING_CHUNK_SIZE);
+                mediaRecorder.start(RECORDING_CHUNK_DURATION);
                 isRecording = true;
                 startTime = Date.now();
                 timerInterval = setInterval(updateTimer, 100);
                 toggleMainButton(true);
-                updateStatusMessage('Listening for a song...');
+                updateStatusMessage('Listening...');
                 startRecordingAnimation();
-                
+
             } catch (error) {
                 console.error('Error accessing microphone:', error);
                 updateStatusMessage('Error: Could not access microphone');
@@ -599,56 +483,63 @@
             }
         }
 
+        async function sendAudioForRecognition(blob) {
+                if (isRecognizing || isMatchFound) return;
+
+                isRecognizing = true;
+                const audioDuration = Math.round((Date.now() - startTime) / 1000);
+                updateStatusMessage(`Analyzing ${audioDuration}s of audio...`);
+
+                const formData = new FormData();
+                formData.append('audio_file', blob, 'recorded_audio.webm');
+                formData.append('mode', 'single');
+
+                try {
+                    const response = await fetch('http://127.0.0.1:5000/recognize', {
+                        method: 'POST', body: formData,
+                    });
+                    const data = await response.json();
+
+                    if (!isRecording || isMatchFound) { isRecognizing = false; return; }
+
+                    if (response.ok && data.results && data.results.length > 0) {
+                        const song = data.results[0];
+                        if (song.confidence >= RECOGNITION_CONFIDENCE_THRESHOLD) {
+                            isMatchFound = true;
+
+                            // ***** THIS IS THE CORRECTED LINE *****
+                            updateResultDisplay(`🎵 <strong>${song.song}</strong><br>Confidence: ${song.confidence}`);
+                            // ************************************
+
+                            updatePossibleMatch('');
+                            updateStatusMessage('Match found!');
+                            stopRecording();
+                        } else {
+                            updatePossibleMatch(`🧐 Possible: <strong>${song.song}</strong> (Confidence: ${song.confidence})`);
+                            updateStatusMessage('Low confidence, listening for more...');
+                        }
+                    } else {
+                        updatePossibleMatch(`❌ No song detected yet.`);
+                        updateStatusMessage('No match yet, listening for more...');
+                    }
+                } catch (error) {
+                    console.error('API Error:', error);
+                    updateStatusMessage('Server connection error. Retrying...');
+                } finally {
+                    isRecognizing = false;
+                }
+            }
+
         async function recognizeAudio() {
             if (!combinedBlob) {
                 updateStatusMessage('Please record a song first');
                 return;
             }
-
-            updateStatusMessage('Analyzing audio...');
             updateResultDisplay('');
-
-            await sendAudioChunkForRecognition(combinedBlob);
+            await sendAudioForRecognition(combinedBlob);
         }
 
-        async function sendAudioChunkForRecognition(blob) {
-            updateStatusMessage(`Analyzing ${Math.round(blob.size / 1024)} KB of audio...`);
-            const formData = new FormData();
-            formData.append('audio_file', blob, 'recorded_audio.webm');
-            formData.append('mode', 'single');
-
-            try {
-                const response = await fetch('http://localhost:5000/recognize', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.results && data.results.length > 0) {
-                    const song = data.results[0];
-                    if (song.confidence >= RECOGNITION_CONFIDENCE_THRESHOLD) {
-                        updateResultDisplay(`🎵 ${song.song} (${song.start_time}) - Confidence: ${song.confidence}`);
-                        updatePossibleMatch(''); // Clear possible match when we have a confident result
-                        updateStatusMessage('Match found!');
-                        if (mediaRecorder && mediaRecorder.state === 'recording') {
-                             mediaRecorder.stop();
-                        }
-                    } else {
-                        updatePossibleMatch(`🧐 Possible: ${song.song} (Confidence: ${song.confidence})`);
-                        updateStatusMessage('Low confidence, recording more...');
-                    }
-                } else {
-                    updatePossibleMatch(`❌ No song detected yet`);
-                    updateStatusMessage('No match found yet, keep recording...');
-                }
-            } catch (error) {
-                console.error('Fetch error:', error);
-                updateStatusMessage('Server connection error');
-            }
-        }
-
-        // Set up event listeners for mobile
+        // --- Cleaned up Event Listeners ---
         if (mainActionButtonMobile) {
             mainActionButtonMobile.addEventListener('click', () => {
                 if (!isRecording) {
@@ -667,7 +558,6 @@
             recognizeButtonMobile.addEventListener('click', recognizeAudio);
         }
 
-        // Set up event listeners for desktop
         if (mainActionButtonDesktop) {
             mainActionButtonDesktop.addEventListener('click', () => {
                 if (!isRecording) {
@@ -686,7 +576,7 @@
             recognizeButtonDesktop.addEventListener('click', recognizeAudio);
         }
 
-        // Reset timer display
+        // Reset timer display on page load
         if (timerMobile) timerMobile.textContent = '00:00:00';
         if (timerDesktop) timerDesktop.textContent = '00:00:00';
     </script>
